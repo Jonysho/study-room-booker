@@ -3,7 +3,10 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, NoSuchElementException
+from selenium.common.exceptions import TimeoutException
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+
 import time
 from dotenv import load_dotenv
 import os
@@ -12,7 +15,6 @@ import os
 load_dotenv()
 
 # --- CONFIGURATION ---
-LOGIN_URL = os.getenv("LOGIN_URL")
 USERNAME = os.getenv("USERNAME")
 PASSWORD = os.getenv("PASSWORD")
 
@@ -20,7 +22,7 @@ PASSWORD = os.getenv("PASSWORD")
 def login_to_resource_booker(driver):
     """Log into the Resource Booker website."""
     try:
-        driver.get(LOGIN_URL)
+        driver.get("https://resourcebooker.manchester.ac.uk/")
         print("Opened the Resource Booker website.")
         
         # Click the login button
@@ -33,7 +35,6 @@ def login_to_resource_booker(driver):
         username_field = driver.find_element(By.ID, "username")
         password_field = driver.find_element(By.ID, "password")
         username_field.send_keys(USERNAME)
-        time.sleep(1)
         password_field.send_keys(PASSWORD)
         time.sleep(1)
 
@@ -42,7 +43,7 @@ def login_to_resource_booker(driver):
         submit_button.click()
 
         # Wait for the post-login page to load
-        time.sleep(5)  # Adjust for network speed
+        time.sleep(4)  # Adjust for network speed
         print("Login successful!")
         locators = [
             (By.XPATH, "//a[contains(@class, 'sidebarNav-link') and contains(., 'Make a booking')]"),
@@ -56,7 +57,7 @@ def login_to_resource_booker(driver):
             )
             driver.execute_script("arguments[0].scrollIntoView(true);", element)  # Scroll to the element if not visible
             element.click()
-            time.sleep(2)  # Add delay to let the next page load
+            time.sleep(1)  # Add delay to let the next page load
 
     except TimeoutException as e:
         print("Error: Login process timed out.", e)
@@ -73,7 +74,7 @@ def find_availability(driver, room_name):
     driver.execute_script("arguments[0].scrollIntoView(true);", element)  # Scroll to the element if not visible
     element.click()
 
-    time.sleep(4)
+    time.sleep(2)
     # Wait for the hour grid and events to be present
     hour_grid = WebDriverWait(driver, 20).until(
         EC.presence_of_element_located((By.CSS_SELECTOR, ".chronos-weekView-hourGrid"))
@@ -116,16 +117,21 @@ def find_availability(driver, room_name):
     if current_start is not None:
         available_slots.append((current_start, current_start + 1))
 
-    # Format the available slots
+    # Get the current time slot
+    current_time = time.localtime()
+    current_slot = current_time.tm_hour * 2 + (1 if current_time.tm_min >= 30 else 0)
+
+    # Filter and format the available slots
     formatted_slots = []
     for start, end in available_slots:
-        start_hour = start // 2
-        start_minute = "30" if start % 2 else "00"
-        end_hour = end // 2
-        end_minute = "30" if end % 2 else "00"
-        formatted_slots.append(f"{start_hour}:{start_minute} - {end_hour}:{end_minute}")
+        if start >= current_slot:
+            start_hour = start // 2
+            start_minute = "30" if start % 2 else "00"
+            end_hour = end // 2
+            end_minute = "30" if end % 2 else "00"
+            formatted_slots.append(f"{start_hour}:{start_minute} - {end_hour}:{end_minute}")
 
-    print(f"{room_name.split(" ")[2]}: {formatted_slots}")
+    print(f"{room_name.split(' ')[2]}: {formatted_slots}")
 
 def visit_study_rooms(driver):
     """Visit each study room, and click the back button."""
@@ -206,7 +212,12 @@ def visit_study_rooms(driver):
 # --- MAIN SCRIPT ---
 if __name__ == "__main__":
     # Initialize the WebDriver
-    driver = webdriver.Chrome()  # Ensure ChromeDriver is in PATH
+    chrome_options = Options()
+    chrome_options.add_argument("--headless")  # Run in headless mode
+    chrome_options.add_argument("--disable-gpu")  # Disable GPU acceleration
+    chrome_options.add_argument("--window-size=1920x1080")  # Set window size (optional)
+    
+    driver = webdriver.Chrome(options=chrome_options)  # Ensure ChromeDriver is in PATH
     
     try:
         # Step 1: Log into the website
